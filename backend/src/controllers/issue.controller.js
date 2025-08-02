@@ -251,6 +251,19 @@ class IssueController {
       next(error);
     }
   }
+
+  async getIssueStats(req, res, next) {
+    try {
+      const stats = await issueService.getIssueStats();
+
+      res.json({
+        success: true,
+        data: stats
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new IssueController();

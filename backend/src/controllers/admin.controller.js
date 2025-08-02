@@ -432,6 +432,197 @@ class AdminController {
       next(error);
     }
   }
+
+  // Update admin notes for an issue
+  async updateAdminNotes(req, res, next) {
+    try {
+      const { issueId } = req.params;
+      const { adminNotes } = req.body;
+
+      const issue = await Issue.findById(issueId);
+      if (!issue) {
+        return res.status(404).json({
+          success: false,
+          message: 'Issue not found'
+        });
+      }
+
+      issue.adminNotes = adminNotes;
+      await issue.save();
+
+      // Log the activity
+      await ActivityLog.create({
+        issueId: issueId,
+        status: issue.status, // Use current issue status
+        note: 'Admin notes updated',
+        updatedBy: req.user.userId,
+        metadata: { adminNotes }
+      });
+
+      res.json({
+        success: true,
+        message: 'Admin notes updated successfully',
+        data: { issue }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Get system health status
+  async getSystemHealth(req, res, next) {
+    try {
+      const startTime = Date.now();
+      
+      // Check database connection
+      let dbStatus = 'Connected';
+      try {
+        await User.findOne().limit(1);
+      } catch (dbError) {
+        dbStatus = 'Disconnected';
+      }
+
+      // Get basic stats
+      const [totalIssues, totalUsers] = await Promise.all([
+        Issue.countDocuments(),
+        User.countDocuments()
+      ]);
+
+      // Calculate response time
+      const responseTime = Date.now() - startTime;
+
+      // Get system uptime
+      const uptime = process.uptime();
+
+      // Get memory usage (simplified)
+      const memoryUsage = process.memoryUsage();
+      const memoryUsageFormatted = `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB / ${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`;
+
+      const healthData = {
+        uptime,
+        dbStatus,
+        apiStatus: 'Running',
+        responseTime,
+        totalIssues,
+        totalUsers,
+        diskSpace: 'N/A', // Would need additional package to get disk space
+        memoryUsage: memoryUsageFormatted
+      };
+
+      res.json({
+        success: true,
+        message: 'System health retrieved successfully',
+        data: healthData
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Export data
+  async exportData(req, res, next) {
+    try {
+      const { type } = req.query;
+      let data = [];
+      let filename = '';
+
+      switch (type) {
+        case 'issues':
+          const issues = await Issue.find()
+            .populate('user', 'username email')
+            .sort({ createdAt: -1 });
+          
+          data = issues.map(issue => ({
+            ID: issue._id,
+            Title: issue.title,
+            Description: issue.description,
+            Category: issue.category,
+            Status: issue.status,
+            Reporter: issue.isAnonymous ? 'Anonymous' : issue.user?.username || 'Unknown',
+            'Reporter Email': issue.isAnonymous ? 'Anonymous' : issue.user?.email || 'Unknown',
+            'Spam Votes': issue.spamVotes,
+            Visible: issue.isVisible ? 'Yes' : 'No',
+            Priority: issue.priority,
+            Views: issue.views,
+            Upvotes: issue.upvotes,
+            Address: issue.address,
+            'Created At': new Date(issue.createdAt).toISOString(),
+            'Updated At': new Date(issue.updatedAt).toISOString()
+          }));
+          filename = 'issues-export';
+          break;
+
+        case 'users':
+          const users = await User.find().sort({ createdAt: -1 });
+          
+          data = users.map(user => ({
+            ID: user._id,
+            Username: user.username,
+            Email: user.email,
+            Phone: user.phone,
+            Role: user.role,
+            'Issues Reported': user.issuesReported,
+            'Spam Reports': user.spamReports,
+            Banned: user.isBanned ? 'Yes' : 'No',
+            'Ban Reason': user.banReason || 'N/A',
+            'Created At': new Date(user.createdAt).toISOString(),
+            'Updated At': new Date(user.updatedAt).toISOString()
+          }));
+          filename = 'users-export';
+          break;
+
+        case 'spam':
+          const spamReports = await SpamReport.find()
+            .populate('issueId', 'title')
+            .populate('reportedBy', 'username email')
+            .sort({ createdAt: -1 });
+          
+          data = spamReports.map(report => ({
+            ID: report._id,
+            'Issue Title': report.issueId?.title || 'Deleted Issue',
+            Reason: report.reason,
+            Description: report.description || 'N/A',
+            'Reported By': report.reportedBy?.username || 'Unknown',
+            'Reporter Email': report.reportedBy?.email || 'Unknown',
+            Status: report.status,
+            'Created At': new Date(report.createdAt).toISOString()
+          }));
+          filename = 'spam-reports-export';
+          break;
+
+        default:
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid export type. Use: issues, users, or spam'
+          });
+      }
+
+      // Convert to CSV
+      if (data.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No data found to export'
+        });
+      }
+
+      const headers = Object.keys(data[0]);
+      const csvContent = [
+        headers.join(','),
+        ...data.map(row => 
+          headers.map(header => 
+            `"${String(row[header]).replace(/"/g, '""')}"`
+          ).join(',')
+        )
+      ].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}-${new Date().toISOString().split('T')[0]}.csv"`);
+      res.send(csvContent);
+
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new AdminController();

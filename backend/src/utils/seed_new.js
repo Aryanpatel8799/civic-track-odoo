@@ -2,7 +2,6 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Issue = require('../models/Issue');
-const { ISSUE_CATEGORIES } = require('../config/constants');
 
 const seedData = async () => {
   try {
@@ -179,12 +178,15 @@ const seedData = async () => {
       else if (random < 0.7) status = 'In Progress'; // 30% in progress  
       else status = 'Resolved';                    // 30% resolved
 
+      // Determine if issue should be anonymous
+      const isAnonymous = Math.random() < 0.15; // 15% anonymous
+      
       const issue = new Issue({
         title: template.title,
         description: template.description,
         category: template.category,
-        user: Math.random() > 0.15 ? user._id : null, // 85% with user, 15% anonymous
-        isAnonymous: Math.random() > 0.15 ? false : true,
+        user: isAnonymous ? null : user._id, // Only set user if not anonymous
+        isAnonymous: isAnonymous,
         location: {
           type: 'Point',
           coordinates: coordinates
@@ -197,84 +199,6 @@ const seedData = async () => {
         views: Math.floor(Math.random() * 100) + 10, // 10-109 views
         createdAt: new Date(Date.now() - Math.random() * 60 * 24 * 60 * 60 * 1000), // Random date within last 60 days
         lastStatusUpdate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000) // Status update within last 30 days
-      });
-
-      await issue.save();
-    }
-
-    console.log('Sample issues created...');
-    
-    // Update user statistics
-    for (const user of users) {
-      const userIssueCount = await Issue.countDocuments({ user: user._id });
-      await User.findByIdAndUpdate(user._id, { issuesReported: userIssueCount });
-    }
-
-      await issue.save();
-    }
-
-    console.log('Sample issues created...');
-      { coordinates: [80.2707, 13.0827], address: 'Chennai, Tamil Nadu' },
-    ];
-
-    // Sample issues
-    const issueTemplates = [
-      {
-        title: 'Large pothole on main road',
-        description: 'There is a huge pothole on the main road causing traffic issues and vehicle damage.',
-        category: 'Road'
-      },
-      {
-        title: 'Broken streetlight',
-        description: 'The streetlight has been broken for weeks, making the area unsafe at night.',
-        category: 'Lighting'
-      },
-      {
-        title: 'Garbage not collected',
-        description: 'Garbage has been piling up for several days and needs immediate attention.',
-        category: 'Cleanliness'
-      },
-      {
-        title: 'Water pipe leakage',
-        description: 'There is a major water pipe leakage causing water wastage and road damage.',
-        category: 'Water'
-      },
-      {
-        title: 'Unsafe pedestrian crossing',
-        description: 'The pedestrian crossing lacks proper signals and is very dangerous.',
-        category: 'Safety'
-      }
-    ];
-
-    // Create issues
-    for (let i = 0; i < 20; i++) {
-      const template = issueTemplates[i % issueTemplates.length];
-      const location = locations[i % locations.length];
-      const user = users[i % users.length];
-      
-      // Add some random variation to coordinates
-      const coordinates = [
-        location.coordinates[0] + (Math.random() - 0.5) * 0.01,
-        location.coordinates[1] + (Math.random() - 0.5) * 0.01
-      ];
-
-      const issue = new Issue({
-        title: `${template.title} - Issue #${i + 1}`,
-        description: template.description,
-        category: template.category,
-        user: Math.random() > 0.2 ? user._id : null, // 20% anonymous
-        isAnonymous: Math.random() > 0.2 ? false : true,
-        location: {
-          type: 'Point',
-          coordinates: coordinates
-        },
-        address: location.address,
-        status: ['Reported', 'In Progress', 'Resolved'][Math.floor(Math.random() * 3)],
-        priority: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)],
-        spamVotes: Math.floor(Math.random() * 3),
-        upvotes: Math.floor(Math.random() * 10),
-        views: Math.floor(Math.random() * 50),
-        createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000) // Random date within last 30 days
       });
 
       await issue.save();

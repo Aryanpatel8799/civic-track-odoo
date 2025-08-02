@@ -64,4 +64,19 @@ router.get('/spam-summary', auth, requireAdmin, adminController.getSpamReportsSu
 // @access  Private (Admin)
 router.get('/analytics', auth, requireAdmin, adminController.getAnalytics);
 
+// @route   PATCH /api/admin/issues/:issueId/admin-notes
+// @desc    Update admin notes for an issue
+// @access  Private (Admin)
+router.patch('/issues/:issueId/admin-notes', auth, requireAdmin, adminController.updateAdminNotes);
+
+// @route   GET /api/admin/health
+// @desc    Get system health status
+// @access  Private (Admin)
+router.get('/health', auth, requireAdmin, adminController.getSystemHealth);
+
+// @route   GET /api/admin/export
+// @desc    Export data (issues, users, spam reports)
+// @access  Private (Admin)
+router.get('/export', auth, requireAdmin, adminController.exportData);
+
 module.exports = router;
